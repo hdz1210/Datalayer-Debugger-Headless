@@ -1,0 +1,47 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment, Secrets & Local Configurations (Strictly Protect Credentials)
+.env
+.env.*
+*.local
+*.config
+*.credentials
+secrets.*
+config.json
+
+# Audit Output, Reports & Generated Files (Prevent Data & URL Leakage)
+*.xlsx
+*.xls
+*.csv
+output/
+reports/
+results/
+*.json
+!requirements.txt
+
+# Internal PRD, BA Specs & Business Drafts
+*PRD*
+*Specification*
+*.bak
+*.doc
+*.docx
+*.pdf
+
+# Playwright & Browser Artifacts
+test-results/
+playwright-report/
+.playwright/
+
+# Logs & Temporary Files
+*.log
+*.tmp
+.DS_Store
+Thumbs.db
+
+# IDE & System
+.vscode/
+.idea/
+.gemini/
