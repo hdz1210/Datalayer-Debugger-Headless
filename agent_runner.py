@@ -59,7 +59,7 @@ class AutonomousDataLayerAgent:
         url: str,
         mode: str = "auto",
         filter_keywords: Optional[List[str]] = None,
-        max_triggers: int = 15,
+        max_triggers: int = 0,
         wait_buffer_ms: int = 1500
     ) -> None:
         """
@@ -67,6 +67,7 @@ class AutonomousDataLayerAgent:
         Modes:
           - 'auto': Trigger discoverable buttons/interactables without keyword restrictions.
           - 'flow': Trigger elements matching user-defined keywords (e.g. submit, contact, buy, register).
+        If max_triggers is 0 or None, executes ALL discovered elements (UNLIMITED).
         """
         print(f"\n[*] Starting interactive trigger audit on: {url} (Mode: {mode.upper()})")
         session = self.engine.start(url)
@@ -83,8 +84,8 @@ class AutonomousDataLayerAgent:
                 status="PASS - Passive load event"
             )
 
-        # 2. Extract interactables dynamically
-        interactables = session.get("interactables", [])
+        # 2. Extract interactables dynamically (all elements without slice)
+        interactables = self.engine.get_interactables(limit=max_triggers if max_triggers > 0 else None)
         print(f"[*] Discovered {len(interactables)} interactable elements on the page.")
 
         # 3. Filter targets based on user mode
@@ -102,8 +103,12 @@ class AutonomousDataLayerAgent:
             # Auto mode: trigger all interactive buttons, inputs, links without any keyword restrictions
             targets = [el for el in interactables if el.get("text") or el.get("data_event") or el.get("id")]
 
-        targets = targets[:max_triggers]
-        print(f"[*] Selected {len(targets)} elements to trigger.\n")
+        # Apply limit if specified, otherwise trigger all (unlimited)
+        if max_triggers and max_triggers > 0:
+            targets = targets[:max_triggers]
+            print(f"[*] Selected {len(targets)} elements to trigger (capped at max_triggers={max_triggers}).\n")
+        else:
+            print(f"[*] UNLIMITED mode enabled (max_triggers = 0): Triggering ALL {len(targets)} discoverable elements!\n")
 
         # 4. Execute triggers sequentially
         for idx, target in enumerate(targets, start=1):
@@ -217,11 +222,13 @@ def run_interactive_onboarding(config_file: str = "audit_config.json") -> None:
         mode = "passive"
 
     # Step 3: Maximum Triggers per page
-    max_triggers = 15
+    max_triggers = 0
     if mode != "passive":
-        raw_max = input("\n[3/4] Enter maximum buttons to trigger per page [Default: 15]: ").strip()
-        if raw_max.isdigit() and int(raw_max) > 0:
+        raw_max = input("\n[3/4] Enter maximum buttons to trigger per page [0 or Enter for UNLIMITED (All), or number]: ").strip()
+        if raw_max.isdigit():
             max_triggers = int(raw_max)
+        else:
+            max_triggers = 0
 
     # Step 4: Output details
     custom_filename = input(f"\n[4/4] Enter Excel output filename [Default: audit_result.xlsx]: ").strip() or "audit_result.xlsx"
@@ -243,7 +250,7 @@ def run_interactive_onboarding(config_file: str = "audit_config.json") -> None:
     if keywords:
         print(f"    - Target Keywords: {keywords}")
     if mode != "passive":
-        print(f"    - Max Triggers: {max_triggers}")
+        print(f"    - Max Triggers: {'UNLIMITED (All buttons)' if max_triggers == 0 else max_triggers}")
     print("-----------------------------------------------------------------\n")
 
     # Execute Audit
@@ -276,7 +283,7 @@ def main():
     parser.add_argument("--url", type=str, default=None, help="Target website URL (overrides config)")
     parser.add_argument("--mode", choices=["auto", "flow", "passive"], default=None, help="Audit mode (auto, flow, passive)")
     parser.add_argument("--keywords", type=str, default=None, help="Comma-separated trigger keywords for flow mode")
-    parser.add_argument("--max-triggers", type=int, default=None, help="Maximum triggers to execute per page")
+    parser.add_argument("--max-triggers", type=int, default=None, help="Maximum triggers to execute (0 for UNLIMITED)")
     parser.add_argument("--output", type=str, default=None, help="Custom output filename for Excel report")
     parser.add_argument("--headless", action="store_true", default=None, help="Run browser in headless mode")
 
@@ -288,7 +295,7 @@ def main():
     # Determine parameter values (CLI arguments take precedence over config file)
     target_url = args.url or cfg.get("target_url")
     mode = args.mode or cfg.get("mode", "auto")
-    max_triggers = args.max_triggers if args.max_triggers is not None else cfg.get("max_triggers", 15)
+    max_triggers = args.max_triggers if args.max_triggers is not None else cfg.get("max_triggers", 0)
     output_filename = args.output or cfg.get("output_filename") or "audit_result.xlsx"
     headless = args.headless if args.headless is not None else cfg.get("headless", True)
 

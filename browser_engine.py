@@ -136,9 +136,10 @@ class HeadlessDataLayerEngine:
         except Exception:
             return []
 
-    def get_interactables(self, limit: int = 60) -> List[Dict[str, Any]]:
+    def get_interactables(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
         """
         Extract visible interactable DOM elements across all types of websites.
+        If limit is 0 or None, extracts ALL discoverable interactables without restriction.
         Smart Prioritization:
           1. Business tracking elements (data-event, data-testid, data-track) -> Highest Priority.
           2. Meaningful action buttons/links with clear labels -> Medium-High Priority.
@@ -232,7 +233,10 @@ class HeadlessDataLayerEngine:
         }
         """
         try:
-            return self.page.evaluate(js_extract)[:limit]
+            items = self.page.evaluate(js_extract)
+            if limit and limit > 0:
+                return items[:limit]
+            return items
         except Exception:
             return []
 

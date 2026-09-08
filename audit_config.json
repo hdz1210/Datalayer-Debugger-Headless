@@ -2,7 +2,7 @@
   "target_url": "",
   "mode": "auto",
   "keywords": [],
-  "max_triggers": 15,
+  "max_triggers": 0,
   "output_filename": "audit_result.xlsx",
   "headless": true
 }

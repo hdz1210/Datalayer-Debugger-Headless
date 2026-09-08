@@ -134,8 +134,8 @@ python agent_runner.py --url https://example.com/item/123 --mode passive --outpu
 | `--url` | string | *None* | Target website URL to audit |
 | `--mode` | string | `auto` | Audit mode: `auto`, `flow`, or `passive` |
 | `--keywords` | string | `""` | Comma-separated button keywords for `flow` mode |
-| `--max-triggers` | int | `10` | Maximum button triggers per page |
-| `--output` | string | *Auto* | Custom filename for Excel report |
+| `--max-triggers` | int | `0` | Max button triggers per page (**0 for UNLIMITED - audits ALL buttons**) |
+| `--output` | string | `audit_result.xlsx` | Output filename for Excel report (auto-appends `.xlsx`) |
 | `--headless` | flag | `True` | Runs Chromium in headless mode |
 
 ---
