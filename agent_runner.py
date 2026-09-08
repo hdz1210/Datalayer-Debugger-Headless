@@ -2,7 +2,7 @@
 Autonomous DataLayer Audit Agent Runner (ADAA Runner).
 Operates 100% headless with zero GUI.
 Features configuration-driven execution (audit_config.json), interactive user onboarding,
-and dynamic trigger execution without hardcoding.
+and dynamic trigger execution for ALL website types (E-commerce, Lead Gen, SaaS, Media, Banking).
 Pure English codebase and reporting.
 """
 
@@ -63,12 +63,12 @@ class AutonomousDataLayerAgent:
         wait_buffer_ms: int = 1500
     ) -> None:
         """
-        Dynamically discover interactables and execute triggers.
+        Dynamically discover interactables and execute triggers across any website type.
         Modes:
-          - 'auto': Trigger all discoverable buttons/interactables up to max_triggers.
-          - 'flow': Trigger only elements matching specified keywords or selectors.
+          - 'auto': Trigger discoverable buttons/interactables without keyword restrictions.
+          - 'flow': Trigger elements matching user-defined keywords (e.g. submit, contact, buy, register).
         """
-        print(f"\n[*] Starting interactive trigger audit on: {url}")
+        print(f"\n[*] Starting interactive trigger audit on: {url} (Mode: {mode.upper()})")
         session = self.engine.start(url)
         current_url = session.get("current_url", url)
 
@@ -94,19 +94,20 @@ class AutonomousDataLayerAgent:
             for el in interactables:
                 text = (el.get("text", "") or "").lower()
                 sel = (el.get("selector", "") or "").lower()
+                data_ev = (el.get("data_event", "") or "").lower()
                 name_attr = (el.get("name", "") or "").lower()
-                if any(kw in text or kw in sel or kw in name_attr for kw in keywords_lower):
+                if any(kw in text or kw in sel or kw in data_ev or kw in name_attr for kw in keywords_lower):
                     targets.append(el)
         else:
-            # Auto mode: select visible buttons, inputs, links with text
-            targets = [el for el in interactables if el.get("text") and not el.get("text").startswith("[")]
+            # Auto mode: trigger all interactive buttons, inputs, links without any keyword restrictions
+            targets = [el for el in interactables if el.get("text") or el.get("data_event") or el.get("id")]
 
         targets = targets[:max_triggers]
         print(f"[*] Selected {len(targets)} elements to trigger.\n")
 
         # 4. Execute triggers sequentially
         for idx, target in enumerate(targets, start=1):
-            btn_name = target.get("text") or target.get("selector")
+            btn_name = target.get("text") or target.get("data_event") or target.get("selector")
             selector = target.get("selector")
             print(f"[{idx}/{len(targets)}] Triggering: '{btn_name}' (Selector: {selector})")
 
@@ -179,8 +180,8 @@ def run_interactive_onboarding(config_file: str = "audit_config.json") -> None:
     print("      AUTONOMOUS DATALAYER AUDIT AGENT (ADAA) - ONBOARDING       ")
     print("=================================================================")
     print("Welcome! ADAA is an autonomous, headless agent designed to audit")
-    print("Google Analytics 4 & Google Tag Manager DataLayer implementations.")
-    print("The final output will be a standardized Excel (.xlsx) report.\n")
+    print("DataLayer implementations across ANY website type (E-commerce, Lead Gen, SaaS, etc.)")
+    print("The final output will be a single standardized Excel (.xlsx) report.\n")
 
     # Step 1: Target URL(s)
     while True:
@@ -197,11 +198,11 @@ def run_interactive_onboarding(config_file: str = "audit_config.json") -> None:
     # Step 2: Trigger Requirements / Audit Mode
     print("\n[2/4] Select Audit Trigger Mode:")
     print("  [1] Full Auto-Discovery Mode")
-    print("      (Agent dynamically scans and clicks all interactable buttons)")
+    print("      (Agent scans and clicks all interactable buttons/elements across the page)")
     print("  [2] Targeted / Flow Trigger Mode")
-    print("      (Agent triggers buttons matching specific keywords, e.g. add-to-cart, buy, checkout)")
+    print("      (Agent triggers buttons matching specific keywords of your choice)")
     print("  [3] Passive Page Load Audit Only")
-    print("      (Agent audits page_view / view_item across URLs without clicking)")
+    print("      (Agent audits initial page load events like page_view without clicking)")
 
     choice = input("Enter choice (1, 2, or 3) [Default: 1]: ").strip() or "1"
     
@@ -209,23 +210,21 @@ def run_interactive_onboarding(config_file: str = "audit_config.json") -> None:
     keywords = []
     if choice == "2":
         mode = "flow"
-        raw_kw = input("Enter trigger keywords (comma-separated, e.g. 'cart, buy, select, checkout'): ").strip()
+        raw_kw = input("Enter trigger keywords (comma-separated, e.g. 'submit, contact, buy, signup'): ").strip()
         if raw_kw:
             keywords = [k.strip() for k in raw_kw.split(",") if k.strip()]
-        else:
-            keywords = ["cart", "buy", "order", "checkout", "add"]
     elif choice == "3":
         mode = "passive"
 
     # Step 3: Maximum Triggers per page
-    max_triggers = 10
+    max_triggers = 15
     if mode != "passive":
-        raw_max = input("\n[3/4] Enter maximum buttons to trigger per page [Default: 10]: ").strip()
+        raw_max = input("\n[3/4] Enter maximum buttons to trigger per page [Default: 15]: ").strip()
         if raw_max.isdigit() and int(raw_max) > 0:
             max_triggers = int(raw_max)
 
     # Step 4: Output details
-    custom_filename = input(f"\n[4/4] Enter Excel output filename [Press Enter for default]: ").strip() or None
+    custom_filename = input(f"\n[4/4] Enter Excel output filename [Default: audit_result.xlsx]: ").strip() or "audit_result.xlsx"
 
     # Save to config file for future runs
     save_config(config_file, {
@@ -233,7 +232,7 @@ def run_interactive_onboarding(config_file: str = "audit_config.json") -> None:
         "mode": mode,
         "keywords": keywords,
         "max_triggers": max_triggers,
-        "output_filename": custom_filename or "",
+        "output_filename": custom_filename,
         "headless": True
     })
 
@@ -289,14 +288,14 @@ def main():
     # Determine parameter values (CLI arguments take precedence over config file)
     target_url = args.url or cfg.get("target_url")
     mode = args.mode or cfg.get("mode", "auto")
-    max_triggers = args.max_triggers if args.max_triggers is not None else cfg.get("max_triggers", 10)
-    output_filename = args.output or cfg.get("output_filename") or None
+    max_triggers = args.max_triggers if args.max_triggers is not None else cfg.get("max_triggers", 15)
+    output_filename = args.output or cfg.get("output_filename") or "audit_result.xlsx"
     headless = args.headless if args.headless is not None else cfg.get("headless", True)
 
     if args.keywords is not None:
         keywords = [k.strip() for k in args.keywords.split(",") if k.strip()]
     else:
-        keywords = cfg.get("keywords", ["cart", "buy", "order", "checkout", "add"])
+        keywords = cfg.get("keywords", [])
 
     # If target URL is missing or empty, launch interactive onboarding wizard
     if not target_url:

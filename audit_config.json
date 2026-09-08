@@ -1,15 +1,8 @@
 {
   "target_url": "",
   "mode": "auto",
-  "keywords": [
-    "cart",
-    "buy",
-    "order",
-    "checkout",
-    "add",
-    "select"
-  ],
-  "max_triggers": 10,
-  "output_filename": "",
+  "keywords": [],
+  "max_triggers": 15,
+  "output_filename": "audit_result.xlsx",
   "headless": true
 }

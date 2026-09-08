@@ -2,6 +2,7 @@
 Excel Report Exporter for DataLayer Audit.
 Exports trigger actions, button names, and full DataLayer payloads to .xlsx.
 Pure English schema, styling, and annotations.
+Guarantees a single, clean output file without polluting directories on multiple runs.
 """
 
 import os
@@ -64,12 +65,29 @@ class DataLayerExcelExporter:
             "status": status
         })
 
-    def export(self, output_dir: str = ".", custom_filename: Optional[str] = None) -> str:
-        """Export all recorded triggers to a styled Excel (.xlsx) file."""
+    def export(
+        self,
+        output_dir: str = ".",
+        custom_filename: Optional[str] = None,
+        include_timestamp: bool = False
+    ) -> str:
+        """
+        Export all recorded triggers to a single styled Excel (.xlsx) file.
+        Ensures .xlsx extension and overwrites gracefully instead of generating multiple files.
+        """
         os.makedirs(output_dir, exist_ok=True)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        sanitized_domain = "".join(c if c.isalnum() else "_" for c in self.target_domain).strip("_")
-        filename = custom_filename or f"DataLayer_Audit_{sanitized_domain}_{timestamp}.xlsx"
+        sanitized_domain = "".join(c if c.isalnum() else "_" for c in self.target_domain).strip("_") or "Website"
+
+        if custom_filename and custom_filename.strip():
+            filename = custom_filename.strip()
+            if not filename.lower().endswith(".xlsx"):
+                filename += ".xlsx"
+        elif include_timestamp:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"DataLayer_Audit_{sanitized_domain}_{timestamp}.xlsx"
+        else:
+            filename = f"DataLayer_Audit_{sanitized_domain}.xlsx"
+
         file_path = os.path.join(output_dir, filename)
 
         wb = openpyxl.Workbook()

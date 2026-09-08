@@ -2,6 +2,7 @@
 Headless Browser Engine using Playwright.
 Injects non-intrusive DataLayer interception proxy before page execution.
 Operates 100% headless (Zero-UI) for autonomous AI Agent execution.
+Supports general-purpose websites (E-commerce, Lead Gen, SaaS, Media, Banking, Blogs).
 Pure English documentation and codebase.
 """
 
@@ -135,47 +136,67 @@ class HeadlessDataLayerEngine:
             return []
 
     def get_interactables(self, limit: int = 50) -> List[Dict[str, Any]]:
-        """Extract visible interactable DOM elements (buttons, links, inputs)."""
+        """
+        Extract visible interactable DOM elements across all types of websites.
+        Generates robust, unique selectors (preferring id, data-event, data-testid, unique text).
+        """
         if not self.page:
             return []
 
         js_extract = """
         () => {
             const elements = Array.from(document.querySelectorAll(
-                'button, a, input[type="submit"], input[type="button"], [role="button"], select'
+                'button, a, input[type="submit"], input[type="button"], [role="button"], select, [data-event], [data-testid]'
             ));
-            return elements
-                .filter(el => {
-                    const rect = el.getBoundingClientRect();
-                    const style = window.getComputedStyle(el);
-                    return rect.width > 0 && rect.height > 0 && 
-                           style.visibility !== 'hidden' && 
-                           style.display !== 'none';
-                })
-                .slice(0, 50)
-                .map((el, idx) => {
-                    let text = (el.innerText || el.value || el.getAttribute('aria-label') || el.placeholder || '').trim();
-                    text = text.replace(/\\s+/g, ' ').substring(0, 60);
-                    let selector = '';
-                    if (el.id) {
-                        selector = `#${el.id}`;
-                    } else if (el.name) {
-                        selector = `${el.tagName.toLowerCase()}[name="${el.name}"]`;
-                    } else if (el.className && typeof el.className === 'string') {
-                        const firstClass = el.className.trim().split(/\\s+/)[0];
-                        selector = firstClass ? `.${firstClass}` : el.tagName.toLowerCase();
-                    } else {
-                        selector = el.tagName.toLowerCase();
-                    }
-                    return {
-                        index: idx,
-                        tag: el.tagName.toLowerCase(),
-                        text: text || `[${el.tagName.toLowerCase()}]`,
-                        selector: selector,
-                        id: el.id || '',
-                        name: el.getAttribute('name') || ''
-                    };
-                });
+
+            const visibleElements = elements.filter(el => {
+                const rect = el.getBoundingClientRect();
+                const style = window.getComputedStyle(el);
+                return rect.width > 0 && rect.height > 0 && 
+                       style.visibility !== 'hidden' && 
+                       style.display !== 'none';
+            });
+
+            return visibleElements.slice(0, 50).map((el, idx) => {
+                let text = (el.innerText || el.value || el.getAttribute('aria-label') || el.placeholder || '').trim();
+                text = text.replace(/\\s+/g, ' ').substring(0, 60);
+
+                const dataEvent = el.getAttribute('data-event');
+                const dataTestId = el.getAttribute('data-testid');
+                const id = el.id;
+                const name = el.getAttribute('name');
+                const tag = el.tagName.toLowerCase();
+
+                // Compute unique, robust selector to prevent duplicate clicks on shared CSS classes
+                let selector = '';
+                if (id && !id.match(/^\\d/)) {
+                    selector = `#${id}`;
+                } else if (dataEvent) {
+                    selector = `${tag}[data-event="${dataEvent}"]`;
+                } else if (dataTestId) {
+                    selector = `${tag}[data-testid="${dataTestId}"]`;
+                } else if (name) {
+                    selector = `${tag}[name="${name}"]`;
+                } else if (text && text.length >= 2 && text.length <= 35 && !text.includes('\\n') && !text.includes('"')) {
+                    selector = `${tag}:has-text("${text}")`;
+                } else if (el.className && typeof el.className === 'string') {
+                    const firstClass = el.className.trim().split(/\\s+/)[0];
+                    selector = firstClass ? `${tag}.${firstClass} >> nth=${idx}` : `${tag} >> nth=${idx}`;
+                } else {
+                    selector = `${tag} >> nth=${idx}`;
+                }
+
+                return {
+                    index: idx,
+                    tag: tag,
+                    text: text || dataEvent || `[${tag}]`,
+                    selector: selector,
+                    id: id || '',
+                    name: name || '',
+                    data_event: dataEvent || '',
+                    data_testid: dataTestId || ''
+                };
+            });
         }
         """
         try:
@@ -198,15 +219,16 @@ class HeadlessDataLayerEngine:
         current_url = self.page.url
         try:
             if action == "click":
-                self.page.click(selector, timeout=8000)
+                # Try locator click first for modern text/data selectors, fallback to page.click
+                self.page.locator(selector).first.click(timeout=8000)
             elif action == "fill":
-                self.page.fill(selector, value, timeout=8000)
+                self.page.locator(selector).first.fill(value, timeout=8000)
             elif action == "select":
-                self.page.select_option(selector, value, timeout=8000)
+                self.page.locator(selector).first.select_option(value, timeout=8000)
             elif action == "scroll":
                 self.page.evaluate("window.scrollBy(0, 500)")
             elif action == "hover":
-                self.page.hover(selector, timeout=8000)
+                self.page.locator(selector).first.hover(timeout=8000)
         except Exception as ex:
             return {
                 "status": "ACTION_ERROR",
