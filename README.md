@@ -1,4 +1,4 @@
-# Datalayer-debugger-Headless-
+# Datalayer Debugger Headless
 
 > **Autonomous DataLayer Audit Agent (ADAA)** — A 100% headless, zero-UI AI Agent designed to autonomously audit Google Analytics 4 (GA4) and Google Tag Manager (GTM) DataLayer implementations across websites and export structured Excel reports.
 
@@ -41,8 +41,8 @@
                            ▼
 ┌────────────────────────────────────────────────────────┐
 │             Excel Output Engine (openpyxl)             │
-│  - Generates DataLayer_Audit_[Domain]_[Timestamp].xlsx │
-│  - Standardized Columns & Monospace Code Formatting    │
+│  - Generates single standardized Excel workbook        │
+│  - Formatted columns, wrapping & code styling          │
 └────────────────────────────────────────────────────────┘
 ```
 
@@ -55,8 +55,8 @@
 Ensure Python 3.9+ is installed:
 
 ```bash
-git clone https://github.com/hdz1210/Datalayer-debugger-Headless-.git
-cd Datalayer-debugger-Headless-
+git clone https://github.com/hdz1210/Datalayer-Debugger-Headless.git
+cd Datalayer-Debugger-Headless
 ```
 
 ### 2. Install Dependencies
