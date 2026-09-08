@@ -2,6 +2,7 @@
 Headless Browser Engine using Playwright.
 Injects non-intrusive DataLayer interception proxy before page execution.
 Operates 100% headless (Zero-UI) for autonomous AI Agent execution.
+Features Smart Prioritization: prioritizes business tracking & CTA buttons ahead of UI utilities.
 Supports general-purpose websites (E-commerce, Lead Gen, SaaS, Media, Banking, Blogs).
 Pure English documentation and codebase.
 """
@@ -135,10 +136,14 @@ class HeadlessDataLayerEngine:
         except Exception:
             return []
 
-    def get_interactables(self, limit: int = 50) -> List[Dict[str, Any]]:
+    def get_interactables(self, limit: int = 60) -> List[Dict[str, Any]]:
         """
         Extract visible interactable DOM elements across all types of websites.
-        Generates robust, unique selectors (preferring id, data-event, data-testid, unique text).
+        Smart Prioritization:
+          1. Business tracking elements (data-event, data-testid, data-track) -> Highest Priority.
+          2. Meaningful action buttons/links with clear labels -> Medium-High Priority.
+          3. General navigation & document links -> Medium Priority.
+          4. UI utilities (Copy, Clear, color-dots, decorative icons) -> Deprioritized to prevent quota starvation.
         """
         if not self.page:
             return []
@@ -157,7 +162,7 @@ class HeadlessDataLayerEngine:
                        style.display !== 'none';
             });
 
-            return visibleElements.slice(0, 50).map((el, idx) => {
+            const items = visibleElements.map((el, idx) => {
                 let text = (el.innerText || el.value || el.getAttribute('aria-label') || el.placeholder || '').trim();
                 text = text.replace(/\\s+/g, ' ').substring(0, 60);
 
@@ -166,8 +171,29 @@ class HeadlessDataLayerEngine:
                 const id = el.id;
                 const name = el.getAttribute('name');
                 const tag = el.tagName.toLowerCase();
+                const className = (el.className || '').toString().toLowerCase();
+                const lowerText = text.toLowerCase();
 
-                // Compute unique, robust selector to prevent duplicate clicks on shared CSS classes
+                // Compute Smart Priority Score
+                let priority = 50;
+                if (dataEvent) priority += 100;
+                if (dataTestId) priority += 60;
+                if (text && text.length >= 3) priority += 25;
+
+                // Deprioritize UI utilities and decorative dots so they do not exhaust trigger quotas
+                let isUtility = false;
+                if (lowerText === 'copy' || lowerText === 'clear' || 
+                    className.includes('color-dot') || className.includes('log-btn') || 
+                    className.includes('btn-icon') || id.includes('clear')) {
+                    priority -= 40;
+                    isUtility = true;
+                }
+                if (!text && !dataEvent && !dataTestId) {
+                    priority -= 50;
+                    isUtility = true;
+                }
+
+                // Compute Unique Selector
                 let selector = '';
                 if (id && !id.match(/^\\d/)) {
                     selector = `#${id}`;
@@ -179,8 +205,8 @@ class HeadlessDataLayerEngine:
                     selector = `${tag}[name="${name}"]`;
                 } else if (text && text.length >= 2 && text.length <= 35 && !text.includes('\\n') && !text.includes('"')) {
                     selector = `${tag}:has-text("${text}")`;
-                } else if (el.className && typeof el.className === 'string') {
-                    const firstClass = el.className.trim().split(/\\s+/)[0];
+                } else if (className) {
+                    const firstClass = className.trim().split(/\\s+/)[0];
                     selector = firstClass ? `${tag}.${firstClass} >> nth=${idx}` : `${tag} >> nth=${idx}`;
                 } else {
                     selector = `${tag} >> nth=${idx}`;
@@ -194,9 +220,15 @@ class HeadlessDataLayerEngine:
                     id: id || '',
                     name: name || '',
                     data_event: dataEvent || '',
-                    data_testid: dataTestId || ''
+                    data_testid: dataTestId || '',
+                    priority: priority,
+                    is_utility: isUtility
                 };
             });
+
+            // Sort by priority descending: high-value tracking & CTAs first
+            items.sort((a, b) => b.priority - a.priority);
+            return items;
         }
         """
         try:
@@ -219,7 +251,6 @@ class HeadlessDataLayerEngine:
         current_url = self.page.url
         try:
             if action == "click":
-                # Try locator click first for modern text/data selectors, fallback to page.click
                 self.page.locator(selector).first.click(timeout=8000)
             elif action == "fill":
                 self.page.locator(selector).first.fill(value, timeout=8000)
