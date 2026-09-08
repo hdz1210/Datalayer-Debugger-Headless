@@ -20,6 +20,7 @@ output/
 reports/
 results/
 *.json
+!audit_config.json
 !requirements.txt
 
 # Internal PRD, BA Specs & Business Drafts

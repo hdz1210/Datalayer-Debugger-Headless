@@ -1,12 +1,14 @@
 """
 Autonomous DataLayer Audit Agent Runner (ADAA Runner).
 Operates 100% headless with zero GUI.
-Features interactive user onboarding and dynamic trigger execution without hardcoding.
+Features configuration-driven execution (audit_config.json), interactive user onboarding,
+and dynamic trigger execution without hardcoding.
 Pure English codebase and reporting.
 """
 
 import sys
 import os
+import json
 import argparse
 import urllib.parse
 from typing import List, Dict, Any, Optional
@@ -150,8 +152,29 @@ class AutonomousDataLayerAgent:
         return self.exporter.export(output_dir=output_dir, custom_filename=custom_filename)
 
 
-def run_interactive_onboarding() -> None:
-    """Interactive CLI onboarding wizard to guide users when no CLI arguments are supplied."""
+def load_config(config_path: str) -> Dict[str, Any]:
+    """Load configuration from a JSON file if it exists."""
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"[Warning] Failed to read config file '{config_path}': {e}")
+    return {}
+
+
+def save_config(config_path: str, data: Dict[str, Any]) -> None:
+    """Save current configuration to a JSON file."""
+    try:
+        with open(config_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+        print(f"[*] Configuration saved to: {config_path}")
+    except Exception as e:
+        print(f"[Warning] Could not save config file: {e}")
+
+
+def run_interactive_onboarding(config_file: str = "audit_config.json") -> None:
+    """Interactive CLI onboarding wizard to guide users when no target URL is configured."""
     print("=================================================================")
     print("      AUTONOMOUS DATALAYER AUDIT AGENT (ADAA) - ONBOARDING       ")
     print("=================================================================")
@@ -161,7 +184,7 @@ def run_interactive_onboarding() -> None:
 
     # Step 1: Target URL(s)
     while True:
-        raw_urls = input("[1/4] Enter target URL(s) [separate multiple with comma]: ").strip()
+        raw_urls = input("[1/4] Enter target website URL(s) [separate multiple with comma]: ").strip()
         if raw_urls:
             urls = [u.strip() for u in raw_urls.split(",") if u.strip()]
             if all(u.startswith("http://") or u.startswith("https://") for u in urls):
@@ -186,7 +209,7 @@ def run_interactive_onboarding() -> None:
     keywords = []
     if choice == "2":
         mode = "flow"
-        raw_kw = input("Enter trigger keywords/selectors (comma-separated, e.g., 'cart, buy, select, checkout'): ").strip()
+        raw_kw = input("Enter trigger keywords (comma-separated, e.g. 'cart, buy, select, checkout'): ").strip()
         if raw_kw:
             keywords = [k.strip() for k in raw_kw.split(",") if k.strip()]
         else:
@@ -195,16 +218,24 @@ def run_interactive_onboarding() -> None:
         mode = "passive"
 
     # Step 3: Maximum Triggers per page
-    max_triggers = 15
+    max_triggers = 10
     if mode != "passive":
         raw_max = input("\n[3/4] Enter maximum buttons to trigger per page [Default: 10]: ").strip()
         if raw_max.isdigit() and int(raw_max) > 0:
             max_triggers = int(raw_max)
-        else:
-            max_triggers = 10
 
     # Step 4: Output details
     custom_filename = input(f"\n[4/4] Enter Excel output filename [Press Enter for default]: ").strip() or None
+
+    # Save to config file for future runs
+    save_config(config_file, {
+        "target_url": urls[0] if len(urls) == 1 else urls,
+        "mode": mode,
+        "keywords": keywords,
+        "max_triggers": max_triggers,
+        "output_filename": custom_filename or "",
+        "headless": True
+    })
 
     print("\n-----------------------------------------------------------------")
     print(f"[*] Configuration Summary:")
@@ -235,47 +266,70 @@ def run_interactive_onboarding() -> None:
 
 
 def main():
-    """Main entrypoint supporting both CLI arguments and interactive onboarding."""
+    """Main entrypoint supporting config files, CLI arguments, and interactive onboarding."""
     try:
         sys.stdout.reconfigure(encoding="utf-8")
     except Exception:
         pass
 
     parser = argparse.ArgumentParser(description="Autonomous DataLayer Audit Agent (Headless, No-UI)")
-    parser.add_argument("--url", type=str, help="Target website URL")
-    parser.add_argument("--mode", choices=["auto", "flow", "passive"], default=None, help="Audit mode")
-    parser.add_argument("--keywords", type=str, default="", help="Comma-separated trigger keywords for flow mode")
-    parser.add_argument("--max-triggers", type=int, default=10, help="Maximum triggers to execute per page")
+    parser.add_argument("--config", type=str, default="audit_config.json", help="Path to JSON configuration file (default: audit_config.json)")
+    parser.add_argument("--url", type=str, default=None, help="Target website URL (overrides config)")
+    parser.add_argument("--mode", choices=["auto", "flow", "passive"], default=None, help="Audit mode (auto, flow, passive)")
+    parser.add_argument("--keywords", type=str, default=None, help="Comma-separated trigger keywords for flow mode")
+    parser.add_argument("--max-triggers", type=int, default=None, help="Maximum triggers to execute per page")
     parser.add_argument("--output", type=str, default=None, help="Custom output filename for Excel report")
-    parser.add_argument("--headless", action="store_true", default=True, help="Run browser in headless mode (default: True)")
+    parser.add_argument("--headless", action="store_true", default=None, help="Run browser in headless mode")
 
     args = parser.parse_args()
 
-    # If no URL supplied via CLI, launch interactive onboarding wizard
-    if not args.url:
-        run_interactive_onboarding()
+    # Load configuration file if present
+    cfg = load_config(args.config)
+
+    # Determine parameter values (CLI arguments take precedence over config file)
+    target_url = args.url or cfg.get("target_url")
+    mode = args.mode or cfg.get("mode", "auto")
+    max_triggers = args.max_triggers if args.max_triggers is not None else cfg.get("max_triggers", 10)
+    output_filename = args.output or cfg.get("output_filename") or None
+    headless = args.headless if args.headless is not None else cfg.get("headless", True)
+
+    if args.keywords is not None:
+        keywords = [k.strip() for k in args.keywords.split(",") if k.strip()]
+    else:
+        keywords = cfg.get("keywords", ["cart", "buy", "order", "checkout", "add"])
+
+    # If target URL is missing or empty, launch interactive onboarding wizard
+    if not target_url:
+        print(f"[*] Notice: No target URL configured in CLI or '{args.config}'.")
+        print("[*] Launching interactive onboarding wizard...\n")
+        run_interactive_onboarding(config_file=args.config)
         return
 
-    # Non-interactive CLI execution
-    parsed_domain = urllib.parse.urlparse(args.url).netloc or "Website"
-    mode = args.mode or "auto"
-    keywords = [k.strip() for k in args.keywords.split(",") if k.strip()]
+    # Normalize URLs into a list
+    if isinstance(target_url, list):
+        urls = target_url
+    else:
+        urls = [u.strip() for u in str(target_url).split(",") if u.strip()]
 
-    agent = AutonomousDataLayerAgent(target_domain=parsed_domain, headless=args.headless)
+    parsed_domain = urllib.parse.urlparse(urls[0]).netloc or "Website"
+    print(f"[*] Running audit with configuration (Domain: {parsed_domain}, Mode: {mode}, Headless: {headless})")
+
+    agent = AutonomousDataLayerAgent(target_domain=parsed_domain, headless=headless)
     try:
-        if mode == "passive":
-            agent.audit_passive(args.url)
-        else:
-            agent.audit_triggers(
-                args.url,
-                mode=mode,
-                filter_keywords=keywords,
-                max_triggers=args.max_triggers
-            )
+        for u in urls:
+            if mode == "passive":
+                agent.audit_passive(u)
+            else:
+                agent.audit_triggers(
+                    u,
+                    mode=mode,
+                    filter_keywords=keywords,
+                    max_triggers=max_triggers
+                )
     finally:
         agent.close()
 
-    excel_file = agent.export(output_dir=".", custom_filename=args.output)
+    excel_file = agent.export(output_dir=".", custom_filename=output_filename)
     print(f"\n[OK] Excel audit report exported to: {excel_file}")
 
 

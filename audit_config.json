@@ -1,0 +1,15 @@
+{
+  "target_url": "",
+  "mode": "auto",
+  "keywords": [
+    "cart",
+    "buy",
+    "order",
+    "checkout",
+    "add",
+    "select"
+  ],
+  "max_triggers": 10,
+  "output_filename": "",
+  "headless": true
+}

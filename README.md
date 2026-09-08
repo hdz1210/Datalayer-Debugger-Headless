@@ -68,30 +68,53 @@ playwright install chromium
 
 ---
 
-## 💻 Usage
+## 💻 Usage & Execution Modes
 
-### Mode A: Interactive Onboarding (Recommended)
+You can run the audit tool in three seamless ways:
 
-Simply execute the script without any parameters. The agent will launch an interactive wizard:
+### Mode 1: Configuration-Driven (Fastest & Recommended for AI Agents)
+
+Edit the [`audit_config.json`](audit_config.json) file directly with your target URL and preferences:
+
+```json
+{
+  "target_url": "https://example.com/booking",
+  "mode": "flow",
+  "keywords": ["cart", "buy", "checkout", "add"],
+  "max_triggers": 10,
+  "output_filename": "My_Booking_Audit.xlsx",
+  "headless": true
+}
+```
+
+Then simply execute:
+```bash
+python agent_runner.py
+# Or tell your AI Agent: "Run audit using config"
+```
+The agent reads `audit_config.json` immediately and completes the audit in seconds without guessing or running exploratory mock tests.
+
+---
+
+### Mode 2: Interactive Onboarding Wizard
+
+If `target_url` in `audit_config.json` is left blank (`""`) and no CLI flags are passed, running:
 
 ```bash
 python agent_runner.py
 ```
+will automatically launch an interactive terminal wizard prompting for:
+1. Target website URL(s)
+2. Trigger Mode (`[1] Auto-Discovery`, `[2] Flow Keywords`, `[3] Passive Page Load`)
+3. Target trigger keywords (if Flow mode)
+4. Max buttons to trigger
+5. Output Excel filename
 
-**Interactive Prompts:**
-1. **Target URL(s)**: Enter single URL or comma-separated URLs.
-2. **Audit Trigger Mode**:
-   - `[1] Full Auto-Discovery Mode`: Automatically finds and clicks all discoverable interactable buttons.
-   - `[2] Targeted / Flow Trigger Mode`: Filters and clicks buttons matching specific keywords (e.g., `add to cart`, `buy`, `checkout`).
-   - `[3] Passive Page Load Audit Only`: Audits `page_view`, `view_item`, and initial tags without clicking.
-3. **Maximum Triggers**: Maximum buttons to click per page.
-4. **Excel Output Filename**: Custom filename or press Enter for default timestamped naming.
+*Note: Your answers will automatically be saved to `audit_config.json` for future runs.*
 
 ---
 
-### Mode B: Non-Interactive CLI Flags
-
-Ideal for scripting, scheduled jobs, or automated CI/CD:
+### Mode 3: Non-Interactive CLI Arguments (For CI/CD & Automation)
 
 ```bash
 # Full auto-discovery audit
